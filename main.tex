@@ -1,14 +1,118 @@
-\documentclass{article}
-\usepackage[utf8]{inputenc}
+\documentclass[a4paper,11pt]{article}
 
-\title{note-bisc}
+%%%%%%%%%%%%%%%%%%% Packages %%%%%%%%%%%%%%%%%%%
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper, margin=20mm, bindingoffset=0mm, heightrounded]{geometry}  % one of the few packages let you reconfigure (\geometry{})
+\usepackage[backend=biber, style=alphabetic, sorting=ynt]{biblatex}
+\usepackage[dvipsnames]{xcolor}  % for {Maroon}
+\usepackage[british]{babel}  % for correct hyphenation
+\usepackage{csquotes}
+\usepackage{xhfill}  % for \xhrulefill
+\usepackage{hyperref}
+% \usepackage{ragged2e}  % for text alignment, but default \justify
+\usepackage{tikz}
+            
+%%%%%%%%%%%%%%%%%%% Settings %%%%%%%%%%%%%%%%%%%
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+
+\addbibresource{bibliography/literature_review.bib}
+\addbibresource{bibliography/references.bib}
+
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{\node[shape=circle,draw,inner sep=2pt] (char) {#1};}}
+            
+%%%%%%%%%%%%%%%%%%% Document %%%%%%%%%%%%%%%%%%%
+\title{Bio-image Segmentation and Classification}
 \author{Qin Yu}
 \date{April 2020}
 
 \begin{document}
-
 \maketitle
 
-\section{Introduction}
+\section{Colours}
+\begin{description}
+    \item[Concepts don't understand yet] \xhrulefill{Maroon}{2pt}
+\end{description}
+
+\section{A. Bove, D. Gradeci, et al.} \textit{Local cellular neighbourhood controls proliferation in cell competition} \cite{bove2017local}
+\subsection{Image processing and cell tracking}
+Segment time-lapse movies of cells into foreground (cell) and background.
+\begin{description}
+    \item[Restoration] (preprocessing) of the fluorescence images:
+    \begin{enumerate}
+        \item \textcolor{Maroon}{Flat-field illumination correction}
+        \item \textcolor{Maroon}{Remove CCD ``hot pixel''}
+    \end{enumerate}
+    
+    \item[Segmentation] using a \textcolor{Maroon}{Gaussian mixture model (GMM)}:
+    \begin{enumerate}
+        \item Take three images -- beginning, middle, end -- of the movie
+        \item Fit these images to a GMM using \textcolor{Maroon}{expectation maximisation algorithm} \cite{xu1996convergence} to learn the appropriate parameter $\theta$
+        \item Obtain \textcolor{Maroon}{intensity distribution} $P(x|\theta) = \sum^n_{k = 1}\lambda_k N_k (\mu_k, \sigma_k^2)$, where typically $n = 3$
+        \item Dense regions of cells where separated using either \textcolor{Maroon}{marker-controlled watershed transform}, or a hybrid of both methods
+    \end{enumerate}
+    
+    \item[Merging/recombination] of over-segmented fragments of nuclei with a week fluorescence signal:
+    \begin{enumerate}
+        \item Calculate a Delaunay graph to make putative clusters of fragments
+        \item Construct hypotheses for combinations of fragments \textcolor{Maroon}{constituting a single object}
+        \item Assign equal prior probabilities to each hypotheses
+        \item \textcolor{Maroon}{Perform successive Bayesian updates} using separation distance and image features
+        \item Select the merging hypotheses with the highest posterior probabilities
+    \end{enumerate}
+    
+    \item[Classification] of each nuclear marker into \textit{interphase}, \textit{pro(meta)phase}, \textit{metaphase}, \textit{anaphase}/\textit{telophase}, and \textit{apoptotic}.
+    \begin{description}
+        \item[CNN architecture] -- LeNet-5 \cite{lecun1998gradient,lecun2015lenet}: 
+        \begin{enumerate}
+            \item Several layers of $3\times3$ convolution, ReLU \cite{nair2010rectified}, and $2\times2$ max-pooling units \cite{scherer2010evaluation}, which decrease spatial dimensionality and increase the number of filters
+            \item Several fully connected layers, which reduce the output to a one-dimensional tensor representing the five mutually exclusive cell cycle classes
+            \item Final Softmax layer returns the output probabilities for each class
+        \end{enumerate}
+        \item[Deep CNN training] \mbox{}
+        \begin{enumerate}
+            \item Generate three data sets: 1) training, 2) test, 3) validation with equal size
+            \item Augment the training examples by 1) rotations, 2) noise, 3) translations, to yield a large number of training examples
+            \item Train using momentum optimiser with an exponentially decaying learning rate until convergence
+            \item Measure accuracy by calculating a confusion matrix using the validation data set
+        \end{enumerate}
+    \end{description}
+    
+    \item[Assembly] of classified and segmented objects into tracks:
+    \begin{description}
+        \item[Assemble objects into tracklets (Def. \ref{def:tracklet}) \circled{?}] i.e. into reliable sections of track that do not contain cell division events:
+        \begin{enumerate}
+            \item The tracking algorithm assembles tracklets
+            \item Each new tracklet initiates a probabilistic model in the form of a Kalman filter \cite{kalman1960new}
+            \item Use this model to predict future states of each of the objects in the field of view
+            \item Evaluate the posterior probability of each potential linkage from a Bayesian belief matrix for all possible linkage
+            \item Assign new observations to the growing tracklet by this evaluation
+            \item Correct errors using a temporal model of the cell cycle \cite{held2010cellcognition}
+        \end{enumerate}
+        \item[Assemble tracklets into lineage trees \circled{?}] by using multiple hypothesis testing and integer programming \cite{al2006automated,bise2011reliable} to identify a globally optimal solution:
+        \begin{enumerate}
+            \item 
+        \end{enumerate}
+    \end{description}
+\end{description}
+
+\subsection{Details}
+\subsubsection{Flat-field illumination correction}
+\subsubsection{Charge-coupled device (CCD) and hot pixel}
+\subsubsection{Gaussian mixture model (GMM)}
+\begin{description}
+    \item[Fuzzy image segmentation:] In image processing and computer vision, traditional image segmentation models often assign to one pixel only one exclusive pattern. In fuzzy or soft segmentation, any pattern can have certain ``ownership'' over any single pixel. If the patterns are Gaussian, fuzzy segmentation naturally results in Gaussian mixtures. Combined with other analytic or geometric tools (e.g., phase transitions over diffusive boundaries), such spatially regularised mixture models could lead to more realistic and computationally efficient segmentation methods.
+\end{description}
+
+\section{Definitions}
+\subsection{Tracklet}
+\label{def:tracklet}
+Yes you guessed it right, tracklet is basically a short track between 5 or 6 frames generally. Track generally refers to the entire trajectory of a unique object's (person) path. During training, we give short paths of different individuals referred to as tracklet. AFAIK, short paths are chosen because most tracking algorithms use a constant velocity linear motion model - and short tracks are usually straight lines and change is velocity is very small.
+
+The term is very informal, as I couldn't find any literature about it as well when I was working on a tracking problem.
+
+Reference: \href{https://stackoverflow.com/questions/55512548/whats-the-difference-between-track-and-tracklet-in-tracking}{What's the difference between track and tracklet in tracking?}
+
+\printbibliography
 
 \end{document}
